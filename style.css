@@ -1,0 +1,7 @@
+/* style.css - place in same folder and link in pages */
+body { background:#f4f7fa; font-family: Inter, system-ui, Arial, sans-serif; }
+.container-card { background:#fff; border-radius:10px; padding:24px; box-shadow:0 6px 18px rgba(20,20,50,0.06); margin-top:24px; }
+.product-card { border-radius:8px; padding:12px; background:#fff; box-shadow:0 4px 12px rgba(0,0,0,0.06); text-align:center; }
+.product-card img { width:100%; height:160px; object-fit:cover; border-radius:6px; }
+.table-actions a { margin-right:8px; }
+.small-muted { font-size:13px; color:#666; }
