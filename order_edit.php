@@ -1,44 +1,53 @@
 <?php
 require_once 'config.php';
-if (!isset($_SESSION['user_id'])) header('Location: login.php');
+session_start();
+if (empty($_SESSION['user'])) header("Location: login.php");
 $id = intval($_GET['id'] ?? 0);
 $o = $conn->query("SELECT * FROM orders WHERE id=$id")->fetch_assoc();
-if (!$o) { header('Location: orders.php'); exit; }
+if (!$o) { header("Location: orders.php"); exit; }
 $products = $conn->query("SELECT * FROM products");
-$err = '';
-if ($_SERVER['REQUEST_METHOD']==='POST') {
-    $customer = trim($_POST['customer']); $new_pid = intval($_POST['product_id']); $new_qty = intval($_POST['quantity']);
-    // get current order
-    $old_qty = $o['quantity']; $old_pid = $o['product_id'];
+$error = '';
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    $product_id = intval($_POST['product_id']);
+    $quantity = intval($_POST['quantity']);
+
     // revert old stock
-    if ($old_pid) { $conn->query("UPDATE products SET stock = stock + $old_qty WHERE id = $old_pid"); }
+    $conn->query("UPDATE products SET stock = stock + ".intval($o['quantity'])." WHERE id = ".intval($o['product_id']));
+
     // check new product stock
-    $p = $conn->query("SELECT stock, price FROM products WHERE id=$new_pid")->fetch_assoc();
-    if (!$p) $err='Invalid product';
-    elseif ($new_qty <=0 || $new_qty > $p['stock']) $err='Invalid quantity';
+    $p = $conn->query("SELECT price, stock FROM products WHERE id=$product_id")->fetch_assoc();
+    if (!$p) $error = 'Invalid product';
+    elseif ($quantity <= 0 || $quantity > intval($p['stock'])) $error = 'Invalid quantity';
     else {
-        $total = $p['price'] * $new_qty;
-        $up = $conn->prepare("UPDATE orders SET customer=?, product_id=?, quantity=?, total_price=? WHERE id=?");
-        $up->bind_param('siidi',$customer,$new_pid,$new_qty,$total,$id); $up->execute(); $up->close();
-        // decrement new stock
-        $conn->query("UPDATE products SET stock = stock - $new_qty WHERE id = $new_pid");
-        header('Location: orders.php'); exit;
+        $total = $p['price'] * $quantity;
+        $up = $conn->prepare("UPDATE orders SET product_id=?, quantity=?, total=? WHERE id=?");
+        $up->bind_param("iidi", $product_id, $quantity, $total, $id);
+        if ($up->execute()) {
+            // decrement stock
+            $conn->query("UPDATE products SET stock = stock - $quantity WHERE id = $product_id");
+            header("Location: orders.php"); exit;
+        } else {
+            $error = $up->error;
+        }
+        $up->close();
     }
 }
 ?>
-<!doctype html><html><head><meta charset="utf-8"><title>Edit Order</title>
-<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet"></head>
-<body><?php include 'navbar.php'; ?>
-<div class="container"><div class="container-card">
-  <h3>Edit Order</h3><?php if($err) echo "<div class='alert alert-danger'>$err</div>"; ?>
+<!doctype html>
+<html><head><meta charset="utf-8"><title>Edit Order</title><link rel="stylesheet" href="style.css"></head>
+<body>
+<?php include 'navbar.php'; ?>
+<div class="container">
+  <h2>Edit Order</h2>
+  <?php if ($error): ?><div class="alert alert-danger"><?=htmlspecialchars($error)?></div><?php endif; ?>
   <form method="post">
-    <input class="form-control mb-2" name="customer" value="<?=htmlspecialchars($o['customer'])?>" required>
-    <select class="form-control mb-2" name="product_id" required>
-      <?php while($p = $products->fetch_assoc()): ?>
-        <option value="<?=$p['id']?>" <?=$p['id']==$o['product_id']?'selected':''?>><?=htmlspecialchars($p['name'])?> (Stock: <?=$p['stock']?>) - ₱<?=number_format($p['price'],2)?></option>
+    <select class="form-control" name="product_id" required>
+      <?php while ($p = $products->fetch_assoc()): ?>
+        <option value="<?= $p['id'] ?>" <?= $p['id']==$o['product_id']?'selected':'' ?>><?= htmlspecialchars($p['name']) ?> (Stock: <?= intval($p['stock']) ?>)</option>
       <?php endwhile; ?>
     </select>
-    <input class="form-control mb-2" name="quantity" type="number" value="<?=$o['quantity']?>" required>
-    <button class="btn btn-primary">Update Order</button>
+    <input class="form-control" name="quantity" type="number" value="<?= intval($o['quantity']) ?>" required>
+    <button class="btn" type="submit">Update</button>
   </form>
-</div></div></body></html>
+</div>
+</body></html>

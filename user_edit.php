@@ -1,34 +1,51 @@
 <?php
 require_once 'config.php';
-if (!isset($_SESSION['user_id'])) header('Location: login.php');
+session_start();
+if (empty($_SESSION['user'])) header("Location: login.php");
 $id = intval($_GET['id'] ?? 0);
-$stmt = $conn->prepare("SELECT id, username, fullname, role FROM users WHERE id=?"); $stmt->bind_param('i',$id); $stmt->execute(); $user = $stmt->get_result()->fetch_assoc(); $stmt->close();
-if (!$user) { header('Location: users.php'); exit; }
-$err='';
-if ($_SERVER['REQUEST_METHOD']==='POST') {
-    $username = trim($_POST['username']); $fullname = trim($_POST['fullname']); $role = $_POST['role'];
-    $stmt = $conn->prepare("UPDATE users SET username=?, fullname=?, role=? WHERE id=?");
-    $stmt->bind_param('sssi',$username,$fullname,$role,$id);
-    $stmt->execute(); $stmt->close();
-    if (!empty($_POST['password'])) {
-        $nh = password_hash($_POST['password'], PASSWORD_DEFAULT);
-        $u2 = $conn->prepare("UPDATE users SET password=? WHERE id=?"); $u2->bind_param('si',$nh,$id); $u2->execute(); $u2->close();
+$stmt = $conn->prepare("SELECT id, username, role FROM users WHERE id=?");
+$stmt->bind_param("i", $id);
+$stmt->execute();
+$user = $stmt->get_result()->fetch_assoc();
+$stmt->close();
+if (!$user) { header("Location: users.php"); exit; }
+$error = '';
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    $username = trim($_POST['username']);
+    $role = $_POST['role'];
+    $up = $conn->prepare("UPDATE users SET username=?, role=? WHERE id=?");
+    $up->bind_param("ssi", $username, $role, $id);
+    if ($up->execute()) {
+        if (!empty($_POST['password'])) {
+            $nh = md5($_POST['password']);
+            $ps = $conn->prepare("UPDATE users SET password=? WHERE id=?");
+            $ps->bind_param("si", $nh, $id);
+            $ps->execute();
+            $ps->close();
+        }
+        header("Location: users.php");
+        exit;
+    } else {
+        $error = $up->error;
     }
-    header('Location: users.php'); exit;
+    $up->close();
 }
 ?>
-<!doctype html><html><head><meta charset="utf-8"><title>Edit User</title>
-<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet"></head>
-<body><?php include 'navbar.php'; ?>
-<div class="container"><div class="container-card"><h3>Edit User</h3>
-<form method="post">
-  <input class="form-control mb-2" name="username" value="<?=htmlspecialchars($user['username'])?>" required>
-  <input class="form-control mb-2" name="fullname" value="<?=htmlspecialchars($user['fullname'])?>" required>
-  <input class="form-control mb-2" name="password" type="password" placeholder="Leave blank to keep current password">
-  <select class="form-control mb-2" name="role">
-    <option value="admin" <?=$user['role']==='admin'?'selected':''?>>admin</option>
-    <option value="staff" <?=$user['role']==='staff'?'selected':''?>>staff</option>
-  </select>
-  <button class="btn btn-primary">Save</button>
-</form>
-</div></div></body></html>
+<!doctype html>
+<html><head><meta charset="utf-8"><title>Edit User</title><link rel="stylesheet" href="style.css"></head>
+<body>
+<?php include 'navbar.php'; ?>
+<div class="container">
+  <h2>Edit User</h2>
+  <?php if ($error): ?><div class="alert alert-danger"><?=htmlspecialchars($error)?></div><?php endif; ?>
+  <form method="post">
+    <input class="form-control" name="username" value="<?=htmlspecialchars($user['username'])?>" required>
+    <input class="form-control" name="password" placeholder="Leave blank to keep current">
+    <select class="form-control" name="role">
+      <option value="admin" <?= $user['role']==='admin'?'selected':'' ?>>admin</option>
+      <option value="staff" <?= $user['role']==='staff'?'selected':'' ?>>staff</option>
+    </select>
+    <button class="btn" type="submit">Save</button>
+  </form>
+</div>
+</body></html>

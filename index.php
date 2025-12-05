@@ -1,5 +1,9 @@
 <?php
-require_once 'config.php';
-if (isset($_SESSION['user_id'])) header('Location: admin.php');
-else header('Location: login.php');
+// redirect to login or admin if logged in
+session_start();
+if (!empty($_SESSION['user'])) {
+    header("Location: admin.php");
+    exit;
+}
+header("Location: login.php");
 exit;
